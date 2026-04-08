@@ -2,7 +2,7 @@ export default {
   slug: 'postgresql-jsonb-indexing',
   title: 'PostgreSQL: practical JSONB indexes and queries',
   date: '2026-03-12',
-  readMin: 9,
+  readMin: 18,
   tags: ['PostgreSQL', 'SQL'],
   excerpt:
     'Use jsonb with GIN, expression indexes, and containment operators to keep document-shaped data fast and queryable.',
@@ -10,7 +10,8 @@ export default {
     {
       p: [
         'JSONB stores JSON in a decomposed binary format with indexing support—prefer it over json unless you need preserved key ordering and whitespace from the original text.',
-        'Typical stacks store flexible attributes (feature flags, vendor metadata) in jsonb while keeping relational columns for hot foreign keys and constraints.',
+        'Typical stacks store flexible attributes (feature flags, vendor metadata, event envelopes) in jsonb while keeping relational columns for hot foreign keys and constraints. That split keeps joins and integrity on columns while still allowing schema-light evolution in payload.',
+        'Operators you will use daily: -> returns jsonb; ->> returns text; @> containment; ? / ?| / ?& key existence; #> and #>> for path arrays.',
       ],
     },
     {
@@ -30,11 +31,22 @@ SELECT id
 FROM events
 WHERE payload @> '{"kind": "signup", "plan": "pro"}';
 
--- Path extraction ->> returns text
+-- Path extraction ->> returns text (good for equality filters)
 SELECT id, payload->>'trace_id' AS trace_id
 FROM events
-WHERE (payload->>'region') = 'eu-west-1';`,
+WHERE (payload->>'region') = 'eu-west-1';
+
+-- Nested path with #>>
+SELECT payload #>> '{user,email}' AS email FROM events LIMIT 5;`,
       },
+    },
+    {
+      h2: 'jsonb_path_ops vs jsonb_ops',
+    },
+    {
+      p: [
+        'GIN indexes support two operator classes. jsonb_path_ops is smaller and faster for containment (@>, <@) but supports fewer operators (? etc.). jsonb_ops is larger but supports key existence queries. Pick based on your query mix; wrong class means the planner cannot use the index for that operator.',
+      ],
     },
     {
       h2: 'GIN index for flexible containment',
@@ -44,9 +56,7 @@ WHERE (payload->>'region') = 'eu-west-1';`,
         lang: 'sql',
         code: `CREATE INDEX events_payload_gin ON events USING gin (payload jsonb_path_ops);
 
--- jsonb_path_ops is compact and fast for containment; use jsonb_ops if you need many ? operators on keys.
-
-EXPLAIN ANALYZE
+EXPLAIN (ANALYZE, BUFFERS)
 SELECT id FROM events
 WHERE payload @> '{"kind": "signup"}';`,
       },
@@ -56,7 +66,7 @@ WHERE payload @> '{"kind": "signup"}';`,
     },
     {
       p: [
-        'If you always filter on payload->>\'user_id\', index that expression—smaller and more selective than indexing the entire jsonb.',
+        'If you always filter on payload->>\'user_id\', index that expression—smaller and more selective than indexing the entire jsonb. Partial indexes (WHERE ...) further shrink size when the condition is common.',
       ],
     },
     {
@@ -64,11 +74,42 @@ WHERE payload @> '{"kind": "signup"}';`,
         lang: 'sql',
         code: `CREATE INDEX events_user_id_text ON events ((payload->>'user_id'));
 
+CREATE INDEX events_signup_recent ON events (created_at)
+WHERE payload @> '{"kind": "signup"}';
+
 SELECT * FROM events WHERE payload->>'user_id' = $1;`,
       },
     },
     {
-      note: 'Keep an eye on write amplification: many jsonb indexes on the same table can slow inserts. Measure with realistic batch loads.',
+      h2: 'jsonpath and analytics',
+    },
+    {
+      p: [
+        'For complex extraction, jsonb_path_query and SQL/JSON path (jsonpath) can express filters inside documents. Use them when containment is not enough; remember functional indexes can target jsonpath expressions if one path is hot.',
+      ],
+    },
+    {
+      code: {
+        lang: 'sql',
+        code: `-- Example: items where any line has qty > 10
+SELECT id
+FROM orders
+WHERE jsonb_path_exists(
+  payload,
+  '$.lines[*] ? (@.qty > 10)'
+);`,
+      },
+    },
+    {
+      note: 'Keep an eye on write amplification: many jsonb indexes on the same table slow inserts. Measure with realistic batch loads and autovacuum settings.',
+    },
+    {
+      h2: 'Migration tip',
+    },
+    {
+      p: [
+        'When promoting a jsonb key to a column, add a generated column (stored) and index the column—queries become simpler and statistics more accurate than raw jsonb for heavy filters.',
+      ],
     },
   ],
 }

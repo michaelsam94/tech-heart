@@ -2,14 +2,15 @@ export default {
   slug: 'github-actions-reusable-workflows',
   title: 'GitHub Actions: reusable workflows and matrix hygiene',
   date: '2026-03-04',
-  readMin: 8,
+  readMin: 16,
   tags: ['CI', 'GitHub'],
   excerpt:
     'Centralize build/test jobs with workflow_call, pass inputs and secrets explicitly, and keep matrices readable.',
   sections: [
     {
       p: [
-        'Reusable workflows (.github/workflows/ci.yml with workflow_call) let organizations standardize lint, test, and deploy steps. Callers stay thin; maintainers update one workflow to roll out policy changes.',
+        'Reusable workflows (trigger: workflow_call) live in .github/workflows/ and act like callable CI functions. Callers reference them with jobs.<job_id>.uses. They are ideal for org-wide Node/Java/Ruby test recipes, security scanning gates, and deployment orchestration with a single change propagating to dozens of repos.',
+        'Unlike composite actions (steps bundled as an action), reusable workflows are full workflows: they own jobs, runners, and permissions boundaries. Choose reusable workflows when you need matrix strategies, job-level permissions, or environment protection rules.',
       ],
     },
     {
@@ -28,6 +29,9 @@ on:
     secrets:
       NPM_TOKEN:
         required: false
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -63,11 +67,40 @@ jobs:
       },
     },
     {
+      p: [
+        'Pin reusable workflows to a tag or SHA for supply-chain stability; @main floats and can surprise callers on every push to the central repo.',
+      ],
+    },
+    {
       h2: 'Matrix discipline',
     },
     {
       p: [
-        'Keep dimensions orthogonal: separate OS, language version, and feature flags into clear axes. Use include: only when a combination needs special variables—avoid exploding job counts accidentally.',
+        'Keep dimensions orthogonal: separate OS, language version, and feature flags into clear axes. Use include: only when a combination needs extra variables—avoid N×M explosions that burn concurrent minute quotas.',
+      ],
+    },
+    {
+      code: {
+        lang: 'yaml',
+        code: `jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+        os: [ubuntu-latest, windows-latest]
+    uses: your-org/ci/.github/workflows/node-ci.yml@v1
+    with:
+      node-version: \${{ matrix.node }}`,
+      },
+    },
+    {
+      h2: 'Secrets and environments',
+    },
+    {
+      p: [
+        'Secrets passed to reusable workflows are not automatically available to workflows triggered from forks of public repos—GitHub strips them to prevent exfiltration. Design fork PR workflows accordingly (e.g. label-gated workflows, restricted tokens).',
+        'Use environments with required reviewers for deploy reusable workflows even if build workflows are wide open.',
       ],
     },
   ],
