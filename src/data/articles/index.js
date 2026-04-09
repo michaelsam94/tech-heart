@@ -11,9 +11,10 @@ function parseMarkdownFile(raw) {
   return { data, content: m[2].trim() }
 }
 
-const rawModules = import.meta.glob('../content/articles/*.md', {
+const rawModules = import.meta.glob('../../content/articles/*.md', {
   eager: true,
-  as: 'raw',
+  query: '?raw',
+  import: 'default',
 })
 
 function parseArticles() {
@@ -21,6 +22,7 @@ function parseArticles() {
   for (const path of Object.keys(rawModules)) {
     const raw = rawModules[path]
     const { data, content } = parseMarkdownFile(raw)
+    if (!data.slug || !data.title) continue
     posts.push({
       slug: data.slug,
       title: data.title,
