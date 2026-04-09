@@ -364,6 +364,36 @@
   border-radius: 8px;
 }
 
+.article-markdown details {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--social-bg);
+}
+
+.article-markdown summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.article-markdown details[open] summary {
+  margin-bottom: 0.65rem;
+}
+
+.article-markdown .key-takeaway {
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-h);
+  line-height: 1.45;
+}
+
 .article-footer {
   margin-top: 3rem;
   padding-top: 1.5rem;

@@ -63,7 +63,7 @@ Not every useful signal appears in historical default labels. **Unsupervised** m
 
 ## Tutorial: Implementing early warning systems with Weights & Biases
 
-The steps below are written **inline** after the conceptual sections so you can follow theory and implementation in one pass. If you ship documentation in **tabbed UIs**, **slide decks**, or **appendices** (a common pattern for separating “approach” from “runbook”), reuse Steps 1–5 verbatim as a **standalone implementation section**—the sequence and code stand alone without the surrounding narrative.
+Steps 1–5 follow the conceptual sections so you can read theory and implementation together. (Optional packaging for slides or appendices is noted at the **end of this article**.)
 
 ### Data: production-like public options (none required)
 
@@ -152,31 +152,64 @@ For recurring pipelines—ingestion, feature computation, batch scoring, and rep
 5. **Evaluate** offline on labeled holdout windows when labels exist; compare PR-AUC / recall-at-precision to **baselines**.  
 6. **Gate**: if metrics fall below policy thresholds, **open a retraining ticket** or trigger an automated retrain pipeline (with human approval if required).
 
+**Workflow diagram (logical DAG):**
+
+```text
+                    ┌─────────────┐
+                    │   Ingest    │
+                    │  snapshot   │
+                    └──────┬──────┘
+                           ▼
+                    ┌─────────────┐
+                    │  Features   │◄── same transforms as training
+                    └──────┬──────┘
+                           ▼
+┌──────────┐         ┌─────────────┐         ┌──────────────────┐
+│ Registry │────────►│    Score    │────────►│  Write scores    │
+│  model   │         │  (batch)    │         │  to store/table  │
+└──────────┘         └──────┬──────┘         └──────────────────┘
+                            ▼
+                     ┌─────────────┐         yes    ┌─────────────┐
+                     │   Offline   │────────────────►│  Retrain /  │
+                     │ eval / gate │                 │   ticket    │
+                     └──────┬──────┘                 └─────────────┘
+                            │ no
+                            ▼
+                     ┌─────────────┐
+                     │  wandb.log  │
+                     │  (lineage)  │
+                     └─────────────┘
+```
+
 The objective is **recurring risk scoring** with traceable artifacts: each run should emit logged metrics so model risk and audit can answer what was scored, with which **model version**, on which **data snapshot**.
 
-**Concrete sketch (adapt function names to Weave ops, Dagster assets, or your scheduler):**
+**Runnable skeleton (fill in I/O; wire `run_ews_batch` to cron, Airflow, Dagster, or Weave):**
 
 ```python
-# Illustrative batch job—same logical flow whether implemented in Weave, Dagster, or plain cron.
+# Batch EWS job—executable structure; plug in your data sources and model loader.
+from __future__ import annotations
+
 import wandb
+import numpy as np
+import pandas as pd
 
-def load_warehouse_snapshot(as_of: str):
-    ...  # return DataFrame of borrower-period rows
+def load_warehouse_snapshot(as_of: str) -> pd.DataFrame:
+    raise NotImplementedError("load from warehouse / lake for as_of")
 
-def build_features(raw):
-    ...  # parity with training-time feature code
+def build_features(raw: pd.DataFrame) -> pd.DataFrame:
+    raise NotImplementedError("must match training-time feature code")
 
 def load_registered_model(version: str):
-    ...  # load artifact pinned in W&B Model Registry or object storage
+    raise NotImplementedError("W&B Model Registry or pickle path")
 
-def write_scores_to_store(ids, scores, as_of: str):
-    ...  # JDBC / warehouse merge into risk_score table
+def write_scores_to_store(ids: pd.Series, scores: np.ndarray, as_of: str) -> None:
+    raise NotImplementedError("merge into risk_score table or feature store")
 
-def backtest_vs_labels(scores, as_of: str) -> dict:
-    ...  # return {"pr_auc": float, ...} on a frozen holdout slice
+def backtest_vs_labels(scores: np.ndarray, as_of: str) -> dict:
+    raise NotImplementedError('return {"pr_auc": float, ...} on holdout')
 
-def trigger_retraining_pipeline():
-    ...  # enqueue training job, pager, or ticket
+def trigger_retraining_pipeline() -> None:
+    raise NotImplementedError("enqueue training job or open ticket")
 
 def run_ews_batch(as_of: str, model_version: str, min_pr_auc: float = 0.25) -> None:
     run = wandb.init(
@@ -187,13 +220,16 @@ def run_ews_batch(as_of: str, model_version: str, min_pr_auc: float = 0.25) -> N
     raw = load_warehouse_snapshot(as_of)
     feats = build_features(raw)
     model = load_registered_model(model_version)
-    scores = model.predict_proba(feats)
+    scores = model.predict_proba(feats)[:, 1]
     write_scores_to_store(feats["account_id"], scores, as_of)
     offline = backtest_vs_labels(scores, as_of)
     wandb.log({"pr_auc_offline": offline["pr_auc"]})
     if offline["pr_auc"] < min_pr_auc:
         trigger_retraining_pipeline()
     run.finish()
+
+if __name__ == "__main__":
+    run_ews_batch(as_of="2024-01-01", model_version="registry/production@v3")
 ```
 
 Map `run_ews_batch` to your scheduler’s entrypoint (e.g. nightly cron). Weave’s value is **expressing** this graph with **typed ops**, **cached intermediates**, and **automatic lineage** into W&B; other orchestrators achieve the same with explicit task boundaries and explicit `wandb.init` / `wandb.log` calls at each stage.
@@ -208,6 +244,15 @@ Closing the loop—**scores → outcomes → drift → retrain**—keeps an earl
 
 ## Conclusion
 
+<div class="key-takeaway" role="note"><strong>Key takeaway:</strong> Durable early warning happens when <strong>interpretable rules</strong>, <strong>sequence-aware modeling</strong>, and <strong>MLOps discipline</strong> (tracking, thresholds, orchestration, monitoring) reinforce each other—not when any single model ships in isolation.</div>
+
 Early warning for loan delinquency sits at the intersection of **interpretable policy** (rules), **temporal structure** (RNN/TCN/attention and related sequence models), and **scalable learning** (supervised and unsupervised ML). Rules remain indispensable for governance and edge cases; sequence and representation learning capture **gradual stress** that aggregate-only views miss; supervised learning delivers calibrated ranking when labels are trustworthy, while unsupervised and semi-supervised methods extend visibility when labels are thin or slow to arrive.
 
 Pairing these techniques with disciplined **experiment tracking** (W&B), **threshold and calibration analysis**, **orchestrated scoring** (Weave or equivalent), and **post-deployment monitoring** turns a notebook into a **production early warning capability**—one teams can refine as products and populations evolve without sacrificing auditability or control.
+
+<details>
+<summary>Author note — packaging the tutorial</summary>
+
+For **slide decks**, **tabbed documentation**, or **appendices** that separate narrative from runbook: Steps 1–5 are unchanged when copied into a **standalone implementation section**—only the surrounding context differs. Internal review templates that ask for a “second tab” for the tutorial can use that extracted block verbatim.
+
+</details>
