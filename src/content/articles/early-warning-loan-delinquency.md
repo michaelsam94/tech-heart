@@ -71,7 +71,7 @@ There’s no mandated public dataset—pick what fits your **license**, **region
 
 **Reasonable public-style options** (always re-read the license and field docs):
 
-- **Fannie Mae** [Single-Family Loan Performance Data](https://capitalmarkets.fanniemae.com/credit-risk-transfer/single-family-credit-risk/single-family-loan-performance-data) — longitudinal mortgage performance; a common sandbox for EWS-style work.
+- **Fannie Mae** [Single-Family Loan Performance Data](https://capitalmarkets.fanniemae.com/credit-risk-transfer/single-family-credit-risk-transfer/fannie-mae-single-family-loan-performance-data) — longitudinal mortgage performance; a common sandbox for EWS-style work. (If this moves again, search Fannie Mae’s site for “Single-Family Loan Performance Data.”)
 - **Freddie Mac** [Single-Family Loan-Level Dataset](http://www.freddiemac.com/research/datasets/sf-loanlevel-dataset) — similar idea; good for a second opinion across agencies.
 - **Consumer / term-loan** archives people use in courses and competitions (e.g. older **Lending Club**-style dumps on [Kaggle](https://www.kaggle.com/))—handy for **tabular** prototypes; availability and terms change, so treat as illustrative.
 - **HMDA** can help with **fairness** and geography when **joined** to loan-level keys; on its own it’s usually too aggregate for account-level sequences.
