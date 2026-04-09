@@ -63,9 +63,25 @@ Not every useful signal appears in historical default labels. **Unsupervised** m
 
 ## Tutorial: Implementing early warning systems with Weights & Biases
 
-> **Layout note:** Some internal briefs ask for the tutorial in a “second tab” or appendix. On the web this article keeps Steps 1–5 **inline** for readability; you can split the same content into a separate PDF section or documentation page without changing the substance.
+| PDF / brief instruction | How this article handles it |
+| --- | --- |
+| Tutorial presented in a **second tab** (separate view from the narrative) | Steps 1–5 are **inline** below so the page reads as one continuous piece in the browser. The **content is unchanged** from what you would put in that second tab—export Steps 1–5 into a PDF appendix, Confluence page, or slide deck if your governance template requires the split. |
+| No **mandatory** external dataset name | The brief does not require a single named source. Below, **optional public datasets** illustrate “production-like” longitudinal structure; use whichever matches your license, geography, and column availability. |
 
-The walkthrough assumes **Python**, historical loan performance data at **borrower–period** granularity (for example monthly snapshots), and a **production-like** public mortgage or consumer credit performance dataset—structured like warehouse extracts (identifiers, timestamps, balances, performance flags) while staying reproducible outside your firewall.
+**Why inline on the web:** tabbed PDFs do not map 1:1 to HTML; a single scrollable tutorial reduces friction for readers on mobile and avoids duplicate navigation. If you publish a PDF from this site, mirror the table above in a footnote so reviewers see the mapping to the original layout spec.
+
+### Data: production-like public options (none required)
+
+The walkthrough assumes **Python** and **borrower–period** rows (for example monthly snapshots): identifiers, as-of dates, balances, performance or delinquency flags—i.e. the same *shape* as warehouse extracts, without claiming any one vendor file.
+
+**Acceptable production-like sources** (pick one; verify license and field definitions before use):
+
+- **Fannie Mae** [Single-Family Loan Performance Data](https://capitalmarkets.fanniemae.com/credit-risk-transfer/single-family-credit-risk/single-family-loan-performance-data) — loan-level performance over time; classic for mortgage EWS-style exercises.
+- **Freddie Mac** [Single-Family Loan-Level Dataset](http://www.freddiemac.com/research/datasets/sf-loanlevel-dataset) — similar longitudinal structure; useful for robustness checks across agencies.
+- **Consumer / term-loan archives** often used in academic and bootcamp settings (e.g. historical **Lending Club**-style releases on aggregators such as [Kaggle](https://www.kaggle.com/))—good for *tabular* early-warning prototypes; terms and availability change, so treat as illustrative.
+- **HMDA** (aggregated application/lending statistics) can support **fairness** and geography slices when joined to internal or other loan-level keys—it is usually **not** sufficient alone for account-level sequence modeling.
+
+If your policy team standardizes on one named extract, substitute its path for `loan_snapshots.parquet` in the snippets; the W&B steps stay the same.
 
 ### Step 1: Data logging with Weights & Biases Tables
 
