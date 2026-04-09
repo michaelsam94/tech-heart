@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { getArticleBySlug } from '../data/articles'
-import { SectionRenderer } from '../components/SectionRenderer'
+import { ArticleBody } from '../components/ArticleBody'
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -46,7 +46,7 @@ export function ArticlePage() {
       </header>
 
       <div className="article-body">
-        <SectionRenderer sections={post.sections} />
+        <ArticleBody markdown={post.body} />
       </div>
 
       <footer className="article-footer">

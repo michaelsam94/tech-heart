@@ -1,17 +1,40 @@
-import a1 from './react-19-use-and-suspense.js'
-import a2 from './typescript-satisfies.js'
-import a3 from './view-transitions-api.js'
-import a4 from './oauth2-pkce-spa.js'
-import a5 from './postgresql-jsonb-indexing.js'
-import a6 from './docker-buildkit-cache.js'
-import a7 from './github-actions-reusable-workflows.js'
-import a8 from './rust-tokio-select.js'
-import a9 from './python-pattern-matching.js'
-import a10 from './node-fetch-streaming.js'
+import { parse as parseYaml } from 'yaml'
 
-export const articles = [a1, a2, a3, a4, a5, a6, a7, a8, a9, a10].sort(
-  (a, b) => new Date(b.date) - new Date(a.date),
-)
+const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/
+
+function parseMarkdownFile(raw) {
+  const m = raw.match(FRONT_MATTER)
+  if (!m) {
+    return { data: {}, content: raw.trim() }
+  }
+  const data = parseYaml(m[1]) ?? {}
+  return { data, content: m[2].trim() }
+}
+
+const rawModules = import.meta.glob('../content/articles/*.md', {
+  eager: true,
+  as: 'raw',
+})
+
+function parseArticles() {
+  const posts = []
+  for (const path of Object.keys(rawModules)) {
+    const raw = rawModules[path]
+    const { data, content } = parseMarkdownFile(raw)
+    posts.push({
+      slug: data.slug,
+      title: data.title,
+      date: data.date,
+      readMin: data.readMin ?? 5,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      excerpt: data.excerpt ?? '',
+      body: content,
+    })
+  }
+  return posts.sort((a, b) => new Date(b.date) - new Date(a.date))
+}
+
+export const articles = parseArticles()
 
 export function getArticleBySlug(slug) {
   return articles.find((a) => a.slug === slug)
