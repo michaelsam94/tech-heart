@@ -63,16 +63,11 @@ Not every useful signal appears in historical default labels. **Unsupervised** m
 
 ## Tutorial: Implementing early warning systems with Weights & Biases
 
-| PDF / brief instruction | How this article handles it |
-| --- | --- |
-| Tutorial presented in a **second tab** (separate view from the narrative) | Steps 1–5 are **inline** below so the page reads as one continuous piece in the browser. The **content is unchanged** from what you would put in that second tab—export Steps 1–5 into a PDF appendix, Confluence page, or slide deck if your governance template requires the split. |
-| No **mandatory** external dataset name | The brief does not require a single named source. Below, **optional public datasets** illustrate “production-like” longitudinal structure; use whichever matches your license, geography, and column availability. |
-
-**Why inline on the web:** tabbed PDFs do not map 1:1 to HTML; a single scrollable tutorial reduces friction for readers on mobile and avoids duplicate navigation. If you publish a PDF from this site, mirror the table above in a footnote so reviewers see the mapping to the original layout spec.
+The steps below are written **inline** after the conceptual sections so you can follow theory and implementation in one pass. If you ship documentation in **tabbed UIs**, **slide decks**, or **appendices** (a common pattern for separating “approach” from “runbook”), reuse Steps 1–5 verbatim as a **standalone implementation section**—the sequence and code stand alone without the surrounding narrative.
 
 ### Data: production-like public options (none required)
 
-The walkthrough assumes **Python** and **borrower–period** rows (for example monthly snapshots): identifiers, as-of dates, balances, performance or delinquency flags—i.e. the same *shape* as warehouse extracts, without claiming any one vendor file.
+No single public dataset is prescribed; choose a source that matches your **license**, **geography**, and **schema** needs. The walkthrough assumes **Python** and **borrower–period** rows (for example monthly snapshots): identifiers, as-of dates, balances, performance or delinquency flags—i.e. the same *shape* as warehouse extracts, without tying you to one vendor file.
 
 **Acceptable production-like sources** (pick one; verify license and field definitions before use):
 
@@ -81,7 +76,7 @@ The walkthrough assumes **Python** and **borrower–period** rows (for example m
 - **Consumer / term-loan archives** often used in academic and bootcamp settings (e.g. historical **Lending Club**-style releases on aggregators such as [Kaggle](https://www.kaggle.com/))—good for *tabular* early-warning prototypes; terms and availability change, so treat as illustrative.
 - **HMDA** (aggregated application/lending statistics) can support **fairness** and geography slices when joined to internal or other loan-level keys—it is usually **not** sufficient alone for account-level sequence modeling.
 
-If your policy team standardizes on one named extract, substitute its path for `loan_snapshots.parquet` in the snippets; the W&B steps stay the same.
+Substitute your approved extract path for `loan_snapshots.parquet` in the snippets; the W&B steps stay the same.
 
 ### Step 1: Data logging with Weights & Biases Tables
 
@@ -146,9 +141,62 @@ Logging **confusion-matrix-derived metrics** at several candidate thresholds—a
 
 ### Step 4: Workflow orchestration with Weave
 
-For recurring pipelines—ingestion, feature computation, batch scoring, and report generation—**Weave** (or any orchestration layer integrated with W&B) can automate **data ingestion**, **model evaluation**, and **scoring** on a schedule. Define workflows that: pull the latest warehouse extract, rebuild features, run **registered** model versions, write scores back to a feature or decisioning store, and **trigger retraining** when offline backtests or live monitoring show **performance degradation** versus baselines.
+For recurring pipelines—ingestion, feature computation, batch scoring, and report generation—**Weave** (Weights & Biases’ workflow toolkit) or any orchestrator you already run (**Airflow**, **Dagster**, **Prefect**, **Argo**, **cron + scripts**) should encode the same **stages** and log into W&B for lineage.
 
-The objective is **recurring risk scoring** with traceable artifacts: each run should emit logged metrics and lineage so model risk and audit can answer what was scored, with which **model artifact**, on which **data snapshot**.
+**Pipeline stages (typical batch EWS job):**
+
+1. **Ingest** the latest warehouse or lake snapshot for a fixed `as_of` date.  
+2. **Compute features** with the same SQL/Python transforms used in training (pin commit hash or artifact id).  
+3. **Load** a **registered** model artifact (versioned in W&B Model Registry or your store).  
+4. **Score** accounts and write probabilities to a **feature store** or decisioning table keyed by account and as-of.  
+5. **Evaluate** offline on labeled holdout windows when labels exist; compare PR-AUC / recall-at-precision to **baselines**.  
+6. **Gate**: if metrics fall below policy thresholds, **open a retraining ticket** or trigger an automated retrain pipeline (with human approval if required).
+
+The objective is **recurring risk scoring** with traceable artifacts: each run should emit logged metrics so model risk and audit can answer what was scored, with which **model version**, on which **data snapshot**.
+
+**Concrete sketch (adapt function names to Weave ops, Dagster assets, or your scheduler):**
+
+```python
+# Illustrative batch job—same logical flow whether implemented in Weave, Dagster, or plain cron.
+import wandb
+
+def load_warehouse_snapshot(as_of: str):
+    ...  # return DataFrame of borrower-period rows
+
+def build_features(raw):
+    ...  # parity with training-time feature code
+
+def load_registered_model(version: str):
+    ...  # load artifact pinned in W&B Model Registry or object storage
+
+def write_scores_to_store(ids, scores, as_of: str):
+    ...  # JDBC / warehouse merge into risk_score table
+
+def backtest_vs_labels(scores, as_of: str) -> dict:
+    ...  # return {"pr_auc": float, ...} on a frozen holdout slice
+
+def trigger_retraining_pipeline():
+    ...  # enqueue training job, pager, or ticket
+
+def run_ews_batch(as_of: str, model_version: str, min_pr_auc: float = 0.25) -> None:
+    run = wandb.init(
+        project="loan-early-warning",
+        job_type="batch-score",
+        config={"as_of": as_of, "model": model_version},
+    )
+    raw = load_warehouse_snapshot(as_of)
+    feats = build_features(raw)
+    model = load_registered_model(model_version)
+    scores = model.predict_proba(feats)
+    write_scores_to_store(feats["account_id"], scores, as_of)
+    offline = backtest_vs_labels(scores, as_of)
+    wandb.log({"pr_auc_offline": offline["pr_auc"]})
+    if offline["pr_auc"] < min_pr_auc:
+        trigger_retraining_pipeline()
+    run.finish()
+```
+
+Map `run_ews_batch` to your scheduler’s entrypoint (e.g. nightly cron). Weave’s value is **expressing** this graph with **typed ops**, **cached intermediates**, and **automatic lineage** into W&B; other orchestrators achieve the same with explicit task boundaries and explicit `wandb.init` / `wandb.log` calls at each stage.
 
 ### Step 5: Deployment monitoring and drift detection
 
