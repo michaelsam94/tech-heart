@@ -6,7 +6,7 @@ export function Layout() {
       <header className="site-header">
         <Link to="/" className="brand">
           <span className="brand-mark" aria-hidden="true" />
-          codeandcoffe
+          Code & Coffe
         </Link>
         <p className="tagline">Technology trends and hands-on notes for builders</p>
         <nav className="site-nav" aria-label="Primary">
