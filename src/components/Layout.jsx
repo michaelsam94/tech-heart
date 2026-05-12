@@ -21,7 +21,10 @@ export function Layout() {
       <footer className="site-footer">
         <p>
           Built with React and Vite. Content is for education; verify against
-          official docs before production use.
+          official docs before production use.{' '}
+          <Link to="/unlock-gaps" className="footer-private-link">
+            Private library
+          </Link>
         </p>
       </footer>
     </div>

@@ -1,0 +1,12 @@
+# https://docs.netlify.com/configure-builds/file-based-configuration/
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 8 + plugin-react expect a current Node; Netlify defaults can lag.
+  NODE_VERSION = "20"
+
+# Optional: set in Netlify UI → Site settings → Environment variables (do not commit secrets):
+#   VITE_GAP_UNLOCK_SHA256 = <64-char lowercase hex SHA-256 of your 12-char passphrase>
+# Rebuild after changing env vars — Vite inlines import.meta.env at build time.

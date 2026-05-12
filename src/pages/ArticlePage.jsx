@@ -1,6 +1,8 @@
 import { Link, useParams } from 'react-router-dom'
 import { getArticleBySlug } from '../data/articles'
 import { ArticleBody } from '../components/ArticleBody'
+import { useGapUnlocked } from '../hooks/useGapUnlocked'
+import { isGapSlug, isGapUnlockConfigured } from '../lib/gapLock'
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -13,6 +15,10 @@ function formatDate(iso) {
 export function ArticlePage() {
   const { slug } = useParams()
   const post = getArticleBySlug(slug)
+  const gapUnlocked = useGapUnlocked()
+  const gap = slug ? isGapSlug(slug) : false
+  const gapLockReady = isGapUnlockConfigured()
+  const gapHidden = gap && (!gapLockReady || !gapUnlocked)
 
   if (!post) {
     return (
@@ -20,6 +26,32 @@ export function ArticlePage() {
         <h1>Article not found</h1>
         <p>No post matches “{slug}”.</p>
         <Link to="/">Back to all articles</Link>
+      </div>
+    )
+  }
+
+  if (gapHidden) {
+    return (
+      <div className="article-missing gap-article-locked">
+        <h1>Private note</h1>
+        <p>
+          This URL is part of the gap-note library. It stays off the public index
+          until the owner passphrase has been entered on this device.
+        </p>
+        {!gapLockReady ? (
+          <p>
+            Unlocking is not enabled yet (no SHA-256 hash configured at build
+            time).
+          </p>
+        ) : (
+          <p>
+            <Link to="/unlock-gaps">Open the unlock page</Link> and enter your
+            12-character passphrase.
+          </p>
+        )}
+        <p>
+          <Link to="/">← All articles</Link>
+        </p>
       </div>
     )
   }

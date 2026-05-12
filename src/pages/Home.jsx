@@ -1,5 +1,8 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { articles } from '../data/articles'
+import { useGapUnlocked } from '../hooks/useGapUnlocked'
+import { filterArticlesForHome } from '../lib/gapLock'
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -10,6 +13,12 @@ function formatDate(iso) {
 }
 
 export function Home() {
+  const gapUnlocked = useGapUnlocked()
+  const visibleArticles = useMemo(
+    () => filterArticlesForHome(articles, gapUnlocked),
+    [gapUnlocked],
+  )
+
   return (
     <div className="home">
       <header className="page-intro">
@@ -21,7 +30,7 @@ export function Home() {
       </header>
 
       <ol className="article-index">
-        {articles.map((post) => (
+        {visibleArticles.map((post) => (
           <li key={post.slug}>
             <article className="card">
               <time dateTime={post.date}>{formatDate(post.date)}</time>

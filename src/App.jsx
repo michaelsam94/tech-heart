@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Home } from './pages/Home'
 import { ArticlePage } from './pages/ArticlePage'
+import { UnlockGaps } from './pages/UnlockGaps'
 import './App.css'
 
 export default function App() {
@@ -9,6 +10,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
+        <Route path="unlock-gaps" element={<UnlockGaps />} />
         <Route path="article/:slug" element={<ArticlePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
